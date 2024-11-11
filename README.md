@@ -23,8 +23,13 @@ http_redirect 127.0.0.1:80
 
 ### In action
 
-A redirect response is given to 
-Open a browser and visit `http://`.
+Any request is sent a redirect response.
+
+For example:
+- `super-cool.com` is redirected to `https://super-cool.com`
+- `http://bummer-drag.com` is redirected to `https://bummer-drag`
+
+`Http redirect` cannot forward `https` requests.
 
 ## Licence
 
