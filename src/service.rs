@@ -2,14 +2,13 @@ use http::uri::Scheme;
 use http::Uri;
 use http_body_util::{combinators::BoxBody, BodyExt, Full};
 use hyper::body::Incoming as IncomingBody;
-use hyper::header::{HeaderValue, CONTENT_TYPE, LOCATION};
+use hyper::header::LOCATION;
 use hyper::http::{Request, Response};
 use hyper::StatusCode;
 use std::io;
 
+const BAD_REQUEST_ERROR: &str = "cannot redirect https requests";
 const INTERNAL_SERVER_ERROR: &str = "500 internal server error";
-
-const HTML: &str = "text/html; charset=utf-8";
 
 pub type BoxedResponse = Response<BoxBody<bytes::Bytes, io::Error>>;
 
@@ -21,10 +20,7 @@ pub async fn build_response(
     if let Some(schm) = dest_parts.scheme {
         if schm.as_str() == "https" {
             // bad request
-            return create_error_response(
-                &StatusCode::INTERNAL_SERVER_ERROR,
-                &INTERNAL_SERVER_ERROR,
-            );
+            return create_error_response(&StatusCode::BAD_REQUEST, &BAD_REQUEST_ERROR);
         }
     };
 
@@ -55,12 +51,9 @@ fn create_error_response(
     code: &StatusCode,
     body: &'static str,
 ) -> Result<BoxedResponse, hyper::http::Error> {
-    Response::builder()
-        .status(code)
-        .header(CONTENT_TYPE, HeaderValue::from_static(HTML))
-        .body(
-            Full::new(bytes::Bytes::from(body))
-                .map_err(|e| match e {})
-                .boxed(),
-        )
+    Response::builder().status(code).body(
+        Full::new(bytes::Bytes::from(body))
+            .map_err(|e| match e {})
+            .boxed(),
+    )
 }
