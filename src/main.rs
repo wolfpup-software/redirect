@@ -1,12 +1,10 @@
 use std::env;
 
-use hyper::service::service_fn;
 use hyper_util::rt::{TokioExecutor, TokioIo};
 use hyper_util::server::conn::auto::Builder;
 use tokio::net::TcpListener;
 
 mod service;
-use service::build_response;
 
 #[tokio::main]
 async fn main() {
@@ -31,10 +29,12 @@ async fn main() {
 
         let io = TokioIo::new(stream);
 
+        let service = service::Svc {};
+
         tokio::task::spawn(async move {
             // log service errors here
             Builder::new(TokioExecutor::new())
-                .serve_connection(io, service_fn(build_response))
+                .serve_connection(io, service)
                 .await
         });
     }

@@ -1,50 +1,64 @@
-use http::uri::Scheme;
+use http::uri::{Authority, Scheme};
 use http::Uri;
 use http_body_util::{combinators::BoxBody, BodyExt, Full};
 use hyper::body::Incoming as IncomingBody;
-use hyper::header::LOCATION;
+use hyper::header::{HOST, LOCATION};
 use hyper::http::{Request, Response};
+use hyper::service::Service;
 use hyper::StatusCode;
+use std::future::Future;
 use std::io;
+use std::pin::Pin;
 
 const BAD_REQUEST_ERROR: &str = "cannot redirect https requests";
+const BAD_REQUEST_URL_ERROR: &str = "cannot redirect when url does not have an authority";
 const INTERNAL_SERVER_ERROR: &str = "500 internal server error";
 
 pub type BoxedResponse = Response<BoxBody<bytes::Bytes, io::Error>>;
+
+pub struct Svc {}
+
+impl Service<Request<IncomingBody>> for Svc {
+    type Response = BoxedResponse;
+    type Error = hyper::http::Error;
+    type Future = Pin<Box<dyn Future<Output = Result<Self::Response, Self::Error>> + Send>>;
+
+    fn call(&self, req: Request<IncomingBody>) -> Self::Future {
+        Box::pin(async move { build_response(req).await })
+    }
+}
 
 pub async fn build_response(
     req: Request<IncomingBody>,
 ) -> Result<BoxedResponse, hyper::http::Error> {
     let mut dest_parts = req.uri().clone().into_parts();
-
-    if let Some(schm) = dest_parts.scheme {
-        if schm.as_str() == "https" {
-            // bad request
-            return create_error_response(&StatusCode::BAD_REQUEST, &BAD_REQUEST_ERROR);
-        }
-    };
-
     dest_parts.scheme = Some(Scheme::HTTPS);
 
-    let dest_url = match Uri::from_parts(dest_parts) {
-        Ok(u) => u,
-        Err(_) => {
-            // bad url
-            return create_error_response(
-                &StatusCode::INTERNAL_SERVER_ERROR,
-                &INTERNAL_SERVER_ERROR,
-            );
-        }
+    let host_header = match req.headers().get(HOST) {
+        Some(hst) => Some(hst.clone()),
+        _ => None,
     };
 
-    Response::builder()
-        .status(StatusCode::PERMANENT_REDIRECT)
-        .header(LOCATION, dest_url.to_string())
-        .body(
-            Full::new(bytes::Bytes::new())
-                .map_err(|e| match e {})
-                .boxed(),
-        )
+    if let (true, Some(hst_hdr)) = (None == dest_parts.authority, host_header) {
+        if let Ok(uri) = Uri::from_maybe_shared(hst_hdr) {
+            if let Some(athrty) = uri.authority() {
+                dest_parts.authority = Some(athrty.clone());
+            }
+        }
+    }
+
+    if let Ok(dest_url) = Uri::from_parts(dest_parts) {
+        return Response::builder()
+            .status(StatusCode::PERMANENT_REDIRECT)
+            .header(LOCATION, dest_url.to_string())
+            .body(
+                Full::new(bytes::Bytes::new())
+                    .map_err(|e| match e {})
+                    .boxed(),
+            );
+    };
+
+    create_error_response(&StatusCode::BAD_REQUEST, &BAD_REQUEST_ERROR)
 }
 
 fn create_error_response(
@@ -57,3 +71,18 @@ fn create_error_response(
             .boxed(),
     )
 }
+
+// {
+// 	Some(athrty) =>  {
+// 		match Authority::from_maybe_shared(athrty.as_ref()) {
+// 			Ok(athrty) => athrty,
+// 			_ => return create_error_response(&StatusCode::BAD_REQUEST, &BAD_REQUEST_ERROR),
+// 		}
+// 	},
+// 	_ => {
+// 		match Authority::from_maybe_shared(hst_header) {
+// 			Ok(athrty) => athrty,
+// 			_ => return create_error_response(&StatusCode::BAD_REQUEST, &BAD_REQUEST_ERROR),
+// 		}
+// 	}
+// };
