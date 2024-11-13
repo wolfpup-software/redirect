@@ -42,7 +42,7 @@ pub async fn build_response(
                     dest_parts.authority = Some(athrty.clone());
                 }
             }
-        };
+        }
     }
 
     if let Ok(dest_url) = Uri::from_parts(dest_parts) {
@@ -54,7 +54,7 @@ pub async fn build_response(
                     .map_err(|e| match e {})
                     .boxed(),
             );
-    };
+    }
 
     create_error_response(&StatusCode::BAD_REQUEST, &BAD_REQUEST_ERROR)
 }
