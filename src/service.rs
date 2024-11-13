@@ -34,10 +34,6 @@ pub async fn build_response(
     let mut dest_parts = req.uri().clone().into_parts();
     dest_parts.scheme = Some(Scheme::HTTPS);
 
-    let mut host_str = None;
-    if let Some(ref authority) = dest_parts.authority {
-        host_str = Some(authority.host());
-    }
     // if http 1.1
     if None == dest_parts.authority {
         if let Some(host_header) = req.headers().get(HOST) {
