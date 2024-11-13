@@ -34,15 +34,13 @@ pub async fn build_response(
     let mut dest_parts = req.uri().clone().into_parts();
     dest_parts.scheme = Some(Scheme::HTTPS);
 
-    let host_header = match req.headers().get(HOST) {
-        Some(hst) => Some(hst.clone()),
-        _ => None,
-    };
-
-    if let (true, Some(hst_hdr)) = (None == dest_parts.authority, host_header) {
-        if let Ok(uri) = Uri::from_maybe_shared(hst_hdr) {
-            if let Some(athrty) = uri.authority() {
-                dest_parts.authority = Some(athrty.clone());
+    // if http 1.1
+    if None == dest_parts.authority {
+        if let Some(host_header) = req.headers().get(HOST) {
+            if let Ok(uri) = Uri::from_maybe_shared(host_header.clone()) {
+                if let Some(athrty) = uri.authority() {
+                    dest_parts.authority = Some(athrty.clone());
+                }
             }
         }
     }
@@ -56,7 +54,7 @@ pub async fn build_response(
                     .map_err(|e| match e {})
                     .boxed(),
             );
-    };
+    }
 
     create_error_response(&StatusCode::BAD_REQUEST, &BAD_REQUEST_ERROR)
 }
@@ -71,18 +69,3 @@ fn create_error_response(
             .boxed(),
     )
 }
-
-// {
-// 	Some(athrty) =>  {
-// 		match Authority::from_maybe_shared(athrty.as_ref()) {
-// 			Ok(athrty) => athrty,
-// 			_ => return create_error_response(&StatusCode::BAD_REQUEST, &BAD_REQUEST_ERROR),
-// 		}
-// 	},
-// 	_ => {
-// 		match Authority::from_maybe_shared(hst_header) {
-// 			Ok(athrty) => athrty,
-// 			_ => return create_error_response(&StatusCode::BAD_REQUEST, &BAD_REQUEST_ERROR),
-// 		}
-// 	}
-// };
